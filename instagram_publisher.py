@@ -28,10 +28,23 @@ class InstagramPublisher:
             return True
             
         except Exception as e:
-            print(f"❌ Помилка входу в Instagram: {e}")
+            error_msg = str(e)
+            print(f"❌ Помилка входу в Instagram: {error_msg}")
+            
+            # Перевіряємо чи це challenge
+            if "ChallengeResolve" in error_msg or "show_selfie_captcha" in error_msg:
+                print("\n⚠️ Instagram вимагає додаткову верифікацію (Challenge)")
+                print("💡 Рішення:")
+                print("1. Увійдіть в аккаунт вручну через браузер або мобільний додаток")
+                print("2. Пройдіть верифікацію (email/SMS/селфі)")
+                print("3. Почекайте 24-48 години і спробуйте знову")
+                print("4. Або використайте інший аккаунт")
+                print("5. Переконайтеся що аккаунт не новий і має активність\n")
+                
             # Спроба завантажити збережену сесію
-            if os.path.exists("instagram_session.json"):
+            elif os.path.exists("instagram_session.json"):
                 try:
+                    print("🔄 Спроба входу через збережену сесію...")
                     self.client.load_settings("instagram_session.json")
                     self.client.login(self.username, self.password)
                     self.is_logged_in = True
