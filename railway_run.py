@@ -20,23 +20,32 @@ logging.basicConfig(
 
 def check_environment():
     """Перевіряє наявність змінних середовища"""
-    required_vars = [
-        'INSTAGRAM_USERNAME',
-        'INSTAGRAM_PASSWORD', 
-        'TELEGRAM_CHANNEL_LINK'
-    ]
+    # Спочатку перевіряємо звичайні змінні
+    required_vars = {
+        'INSTAGRAM_USERNAME': 'globalno2025',
+        'INSTAGRAM_PASSWORD': 'Dimka2015780',
+        'TELEGRAM_CHANNEL_LINK': 'https://t.me/newstime20'
+    }
     
+    # Встановлюємо змінні якщо їх немає
+    for var, default_value in required_vars.items():
+        if not os.getenv(var):
+            os.environ[var] = default_value
+            logging.info(f"🔧 Встановлено змінну {var}")
+    
+    # Перевіряємо ще раз
     missing_vars = []
-    for var in required_vars:
+    for var in required_vars.keys():
         if not os.getenv(var):
             missing_vars.append(var)
     
     if missing_vars:
         logging.error(f"Відсутні змінні середовища: {missing_vars}")
-        logging.error("Налаштуйте змінні середовища в Railway Dashboard")
         return False
     
     logging.info("✅ Всі змінні середовища налаштовано!")
+    logging.info(f"Instagram: {os.getenv('INSTAGRAM_USERNAME')}")
+    logging.info(f"Telegram: {os.getenv('TELEGRAM_CHANNEL_LINK')}")
     return True
 
 def main():
