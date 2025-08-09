@@ -1,5 +1,5 @@
 # Instagram Bot Environment Variables
-INSTAGRAM_USERNAME=globalno2025
-INSTAGRAM_PASSWORD=Dimka2015780
+INSTAGRAM_USERNAME=ukrainenews2025
+INSTAGRAM_PASSWORD=UkraineNews2025!
 TELEGRAM_CHANNEL_LINK=https://t.me/newstime20
 OPENAI_API_KEY=sk-proj-ваш_справжній_ключ_тут
