@@ -59,6 +59,13 @@ def main():
     
     # Імпортуємо та запускаємо бота
     try:
+        # Спробуємо виправити проблему з lxml
+        try:
+            import lxml_html_clean
+            logging.info("✅ lxml_html_clean завантажено")
+        except ImportError:
+            logging.warning("⚠️ lxml_html_clean не знайдено, але це не критично")
+        
         from simple_bot import SimpleInstagramBot
         
         bot = SimpleInstagramBot()

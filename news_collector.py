@@ -51,7 +51,15 @@ class NewsCollector:
             }
         except Exception as e:
             print(f"Помилка при парсингу статті {url}: {e}")
-            return None
+            # Повертаємо базову інформацію якщо повний парсинг не вдався
+            return {
+                'title': 'Новина з RSS',
+                'text': 'Контент новини недоступний для повного парсингу.',
+                'authors': [],
+                'publish_date': None,
+                'top_image': None,
+                'images': []
+            }
     
     def collect_fresh_news(self):
         """Збирає свіжі новини з усіх джерел"""
