@@ -51,7 +51,7 @@ class NewsCollector:
     
     def extract_image_from_entry(self, entry):
         """Витягує URL зображення з RSS entry"""
-        # Пробуємо різні поля де може бути зображення
+        import re
         image_url = None
         
         # 1. Медіа контент
@@ -59,23 +59,115 @@ class NewsCollector:
             for media in entry.media_content:
                 if media.get('type', '').startswith('image/'):
                     image_url = media.get('url')
-                    break
+                    if image_url:
+                        break
         
         # 2. Enclosure
         if not image_url and hasattr(entry, 'enclosures'):
             for enclosure in entry.enclosures:
                 if enclosure.get('type', '').startswith('image/'):
                     image_url = enclosure.get('href')
-                    break
+                    if image_url:
+                        break
         
         # 3. Links з типом image  
         if not image_url and hasattr(entry, 'links'):
             for link in entry.links:
                 if link.get('type', '').startswith('image/'):
                     image_url = link.get('href')
-                    break
+                    if image_url:
+                        break
+        
+        # 4. Шукаємо зображення в summary/description HTML
+        if not image_url:
+            content_fields = [
+                getattr(entry, 'summary', ''),
+                getattr(entry, 'description', ''),
+                getattr(entry, 'content', '')
+            ]
+            
+            for content in content_fields:
+                if isinstance(content, list):
+                    content = ' '.join([str(c.get('value', '')) for c in content])
+                elif hasattr(content, 'value'):
+                    content = content.value
+                
+                if content:
+                    # Шукаємо img теги
+                    img_pattern = r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>'
+                    matches = re.findall(img_pattern, str(content), re.IGNORECASE)
+                    
+                    # Сортуємо зображення за потенційною якістю
+                    quality_images = []
+                    for url in matches:
+                        # Фільтруємо непридатні зображення
+                        if any(skip in url.lower() for skip in ['icon', 'logo', 'avatar', 'button', '1x1', 'pixel', 'thumb']):
+                            continue
+                        # Перевіряємо чи це справжнє зображення
+                        if any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.webp']):
+                            # Оцінюємо потенційну якість за URL
+                            quality_score = self.estimate_image_quality_from_url(url)
+                            quality_images.append((url, quality_score))
+                    
+                    # Беремо найкращий URL
+                    if quality_images:
+                        quality_images.sort(key=lambda x: x[1], reverse=True)
+                        image_url = quality_images[0][0]
+                        break
+                    
+                    if image_url:
+                        break
+        
+        # 5. Шукаємо в атрибутах entry
+        if not image_url:
+            for attr_name in ['image', 'media_thumbnail', 'thumbnail']:
+                if hasattr(entry, attr_name):
+                    attr_value = getattr(entry, attr_name)
+                    if isinstance(attr_value, dict) and 'href' in attr_value:
+                        image_url = attr_value['href']
+                        break
+                    elif isinstance(attr_value, str) and attr_value.startswith('http'):
+                        image_url = attr_value
+                        break
         
         return image_url
+    
+    def estimate_image_quality_from_url(self, url):
+        """Оцінює потенційну якість зображення за URL"""
+        score = 0
+        url_lower = url.lower()
+        
+        # Позитивні показники якості
+        if 'large' in url_lower or 'big' in url_lower:
+            score += 30
+        if 'full' in url_lower or 'original' in url_lower:
+            score += 25
+        if 'hd' in url_lower or 'high' in url_lower:
+            score += 20
+        if any(size in url_lower for size in ['1200', '1080', '1920', '2000']):
+            score += 15
+        if any(size in url_lower for size in ['800', '900', '1000']):
+            score += 10
+        
+        # Негативні показники якості
+        if 'thumb' in url_lower or 'small' in url_lower:
+            score -= 20
+        if 'mini' in url_lower or 'tiny' in url_lower:
+            score -= 25
+        if any(size in url_lower for size in ['150', '200', '300']):
+            score -= 15
+        if '100' in url_lower or '50' in url_lower:
+            score -= 30
+        
+        # Бонус за якісні формати
+        if '.png' in url_lower:
+            score += 5
+        elif '.webp' in url_lower:
+            score += 3
+        elif '.jpg' in url_lower or '.jpeg' in url_lower:
+            score += 1
+        
+        return score
     
     def get_article_content(self, url):
         """Отримує повний контент статті"""

@@ -11,26 +11,41 @@ INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 # Telegram channel link
 TELEGRAM_CHANNEL_LINK = os.getenv('TELEGRAM_CHANNEL_LINK', 'https://t.me/your_channel')
 
-# News sources - Українські джерела З ФОТОГРАФІЯМИ
+# News sources - ПЕРЕВІРЕНІ українські джерела з фотографіями
 NEWS_SOURCES = [
-    'https://www.bbc.com/ukrainian/news/rss.xml',  # BBC завжди має фото
-    'https://www.ukrinform.ua/rss/block-lastnews',  # Укрінформ має фото в більшості новин
-    'https://suspilne.media/rss/',  # Суспільне має якісні фото
-    'https://24tv.ua/rss/',  # 24tv має фото
-    'https://www.pravda.com.ua/rss/',  # Правда часто має фото
-    'https://hromadske.ua/rss',  # Громадське має фото
-    'https://www.radiosvoboda.org/api/zmgqoemtkv',  # Радіо Свобода має фото
-    'https://www.unn.com.ua/rss/news_uk.xml',  # УНН з фото
-    'https://www.rbc.ua/static/rss/ukr/all.xml',  # RBC України з фото
-    'https://zn.ua/rss/'  # Дзеркало тижня з фото
+    # Основні робочі джерела
+    'https://www.ukrinform.ua/rss/block-lastnews',  # Укрінформ - працює, має фото
+    'https://24tv.ua/rss/',  # 24 канал - працює, має фото
+    'https://tsn.ua/rss/full.rss',  # ТСН - працює, має фото
+    'https://armyinform.com.ua/feed/',  # АрміяInform - працює, військові фото
+    
+    # Додаткові рекомендовані джерела з фото
+    'https://www.dw.com/uk/rss/news',  # Deutsche Welle українською
+    'https://www.ukrinform.ua/rss/block-war',  # Укрінформ військові новини
+    'https://espreso.tv/rss',  # Еспресо ТВ
+    'https://www.eurointegration.com.ua/rss/',  # Європейська правда
+    'https://interfax.com.ua/news/rss/',  # Інтерфакс Україна
+    'https://censor.net/includes/news_rss.php',  # Цензор.нет
+    'https://www.obozrevatel.com/rss.xml',  # Обозреватель
+    'https://gordonua.com/xml/rss_category/1.html',  # Гордон
+    
+    # Резервні джерела
+    'https://www.pravda.com.ua/rss/',  # Українська правда
+    'https://hromadske.ua/rss',  # Громадське медіа
+    'https://www.radiosvoboda.org/api/zmgqoemtkv',  # Радіо Свобода
+    'https://zn.ua/rss/',  # Дзеркало тижня
 ]
 
-# Image requirements for horizontal posts
+# Image requirements - ПРИЙМАЄМО ВСІ ЯКІСНІ ФОТО
 IMAGE_REQUIREMENTS = {
-    'min_width': 1350,
-    'min_height': 1080,  # Instagram horizontal ratio
-    'aspect_ratio_range': (1.25, 1.91),  # 5:4 to 16:9 for horizontal
-    'max_file_size_mb': 30
+    'min_width': 400,        # Мінімум для реальних зображень
+    'min_height': 300,       # Мінімум для реальних зображень
+    'preferred_min_width': 600,   # Знижений бажаний мінімум
+    'preferred_min_height': 400,  # Знижений бажаний мінімум
+    'max_scale_factor': 3.0,      # Розумне збільшення для якості
+    'aspect_ratio_range': (0.2, 5.0),  # ПРИЙМАЄМО ВСІ ОРІЄНТАЦІЇ
+    'max_file_size_mb': 30,
+    'min_pixels': 120000     # Мінімум 400x300 пікселів
 }
 
 # OpenAI for content generation
