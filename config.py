@@ -11,17 +11,18 @@ INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 # Telegram channel link
 TELEGRAM_CHANNEL_LINK = os.getenv('TELEGRAM_CHANNEL_LINK', 'https://t.me/your_channel')
 
-# News sources - Українські та про Україну
+# News sources - Українські та про Україну (перевірені на доступність)
 NEWS_SOURCES = [
     'https://www.pravda.com.ua/rss/',
-    'https://tsn.ua/rss/full.rss',
-    'https://nv.ua/rss/all.xml',
     'https://www.radiosvoboda.org/api/zmgqoemtkv',
     'https://www.bbc.com/ukrainian/news/rss.xml',
     'https://suspilne.media/rss/',
     'https://hromadske.ua/rss',
     'https://24tv.ua/rss/',
-    'https://www.unian.ua/rss/news.xml'
+    'https://www.unian.ua/rss/news.xml',
+    'https://censor.net/ua/rss/news',
+    'https://www.ukrinform.ua/rss/block-lastnews',
+    'https://lb.ua/rss'
 ]
 
 # Image requirements for horizontal posts

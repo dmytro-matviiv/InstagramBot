@@ -37,7 +37,19 @@ class NewsCollector:
     def get_article_content(self, url):
         """Отримує повний контент статті"""
         try:
+            # Налаштовуємо Article з User-Agent для обходу блокування
             article = Article(url)
+            
+            # Додаємо headers для обходу 403 помилок
+            article.set_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'uk-UA,uk;q=0.8,en-US;q=0.5,en;q=0.3',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            })
+            
             article.download()
             article.parse()
             
@@ -50,7 +62,9 @@ class NewsCollector:
                 'images': list(article.images)
             }
         except Exception as e:
-            print(f"Помилка при парсингу статті {url}: {e}")
+            # Логуємо помилку але не виводимо в консоль для чистоти логів
+            # print(f"Помилка при парсингу статті {url}: {e}")
+            
             # Повертаємо базову інформацію якщо повний парсинг не вдався
             return {
                 'title': 'Новина з RSS',

@@ -22,7 +22,7 @@ def check_environment():
     """Перевіряє наявність змінних середовища"""
     # Спочатку перевіряємо звичайні змінні
     required_vars = {
-        'INSTAGRAM_USERNAME': 'globalno2025',
+        'INSTAGRAM_USERNAME': 'globalno2025',  # УВАГА: Цей аккаунт не існує! 
         'INSTAGRAM_PASSWORD': 'Dimka2015780',
         'TELEGRAM_CHANNEL_LINK': 'https://t.me/newstime20'
     }
