@@ -33,6 +33,11 @@ def check_environment():
             os.environ[var] = default_value
             logging.info(f"🔧 Встановлено змінну {var}")
     
+    # Встановлюємо порожній OPENAI_API_KEY якщо його немає
+    if not os.getenv('OPENAI_API_KEY'):
+        os.environ['OPENAI_API_KEY'] = ''
+        logging.info("🔧 Встановлено порожню змінну OPENAI_API_KEY (використовуємо локальний генератор)")
+    
     # Перевіряємо ще раз
     missing_vars = []
     for var in required_vars.keys():

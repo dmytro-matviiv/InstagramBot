@@ -4,12 +4,20 @@ from config import OPENAI_API_KEY, CTA_PHRASES, TELEGRAM_CHANNEL_LINK
 
 class ContentGenerator:
     def __init__(self):
-        self.client = OpenAI(api_key=OPENAI_API_KEY)
+        # Ініціалізуємо OpenAI клієнт тільки якщо є API ключ
+        if OPENAI_API_KEY and OPENAI_API_KEY.strip():
+            self.client = OpenAI(api_key=OPENAI_API_KEY)
+        else:
+            self.client = None
         self.cta_phrases = CTA_PHRASES
         self.telegram_link = TELEGRAM_CHANNEL_LINK
     
     def generate_post_description(self, news_title, news_content, max_length=2000):
         """Генерує привабливий опис поста з новини"""
+        # Якщо немає OpenAI клієнта, одразу використовуємо fallback
+        if not self.client:
+            return self.generate_fallback_post(news_title, news_content)
+        
         try:
             # Створюємо промпт для OpenAI
             prompt = f"""
@@ -249,6 +257,10 @@ class ContentGenerator:
     
     def generate_ai_hashtags(self, news_title, news_content):
         """Генерує хештеги через OpenAI"""
+        # Якщо немає клієнта, використовуємо локальний генератор
+        if not self.client:
+            return self.generate_local_hashtags(news_title, news_content)
+        
         prompt = f"""
         Створи 5-10 релевантних хештегів українською мовою для цієї новини:
         
