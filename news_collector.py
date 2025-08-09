@@ -65,15 +65,8 @@ class NewsCollector:
             # Логуємо помилку але не виводимо в консоль для чистоти логів
             # print(f"Помилка при парсингу статті {url}: {e}")
             
-            # Повертаємо базову інформацію якщо повний парсинг не вдався
-            return {
-                'title': 'Новина з RSS',
-                'text': 'Контент новини недоступний для повного парсингу.',
-                'authors': [],
-                'publish_date': None,
-                'top_image': None,
-                'images': []
-            }
+            # Повертаємо None щоб пропустити неробочі статті
+            return None
     
     def collect_fresh_news(self):
         """Збирає свіжі новини з усіх джерел"""
@@ -86,10 +79,14 @@ class NewsCollector:
             for article in rss_articles:
                 # Отримуємо повний контент
                 full_content = self.get_article_content(article['link'])
-                if full_content:
+                if full_content and full_content.get('title') != 'Новина з RSS':
                     article.update(full_content)
-                
-                all_news.append(article)
+                    all_news.append(article)
+                elif not full_content:
+                    # Якщо повний контент недоступний, використовуємо RSS дані
+                    if (article.get('title') and len(article.get('title', '')) > 20 and
+                        article.get('description') and len(article.get('description', '')) > 50):
+                        all_news.append(article)
             
             time.sleep(1)  # Пауза між запитами
         

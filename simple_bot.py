@@ -36,18 +36,18 @@ class SimpleInstagramBot:
         self.posted_articles = set()
     
     def create_text_image(self, title, category="news"):
-        """Створює простий текстовий банер як зображення"""
+        """Створює професійний новинний банер"""
         # Параметри зображення (горизонтальне для Instagram)
         width, height = 1350, 1080
         
-        # Кольори для різних категорій (український патріотичний дизайн)
+        # Професійні кольори для новин (замість яскравого жовтого)
         colors = {
-            'war': '#0057B7',      # Синій з українського прапора
-            'news': '#FFD700',     # Жовтий з українського прапора  
-            'politics': '#800080', # Фіолетовий
-            'technology': '#32CD32', # Зелений
-            'world': '#FF4500',    # Червоно-помаранчевий
-            'business': '#4682B4'  # Сталево-синій
+            'war': '#1E3A8A',      # Темно-синій (серйозні військові новини)
+            'news': '#1F2937',     # Темно-сірий (універсальні новини)
+            'politics': '#7C2D12', # Темно-коричневий  
+            'technology': '#064E3B', # Темно-зелений
+            'world': '#991B1B',    # Темно-червоний
+            'business': '#1E40AF'  # Сталево-синій
         }
         
         bg_color = colors.get(category, colors['news'])
@@ -227,16 +227,34 @@ class SimpleInstagramBot:
             # Віддаємо пріоритет військовим новинам
             prioritized_news = self.translator.prioritize_war_news(ukraine_news)
             
-            # Обираємо випадкову новину з пріоритетного списку
-            news_article = random.choice(prioritized_news[:10])  # Топ-10 найважливіших
+            # Обираємо якісну новину з пріоритетного списку
+            selected_article = None
+            for article in prioritized_news[:15]:  # Перевіряємо топ-15
+                # Перевіряємо якість новини
+                title = article.get('title', '')
+                description = article.get('description', '')
+                
+                if (title and title != 'Новина з RSS' and len(title) > 20 and 
+                    description and len(description) > 50 and
+                    'недоступний для повного парсингу' not in description):
+                    
+                    # Перевіряємо чи не публікували раніше
+                    article_id = hash(title + article.get('link', ''))
+                    if article_id not in self.posted_articles:
+                        selected_article = article
+                        break
             
-            # Перевіряємо чи не публікували цю новину раніше
-            article_id = hash(news_article.get('title', '') + news_article.get('link', ''))
-            if article_id in self.posted_articles:
-                logging.info("Ця новина вже була опублікована, шукаю іншу...")
-                return self.create_and_publish_post()
+            if not selected_article:
+                logging.error("Немає якісних новин для публікації")
+                return False
+            
+            news_article = selected_article
             
             logging.info(f"Обрано новину: {news_article.get('title', 'Без заголовка')}")
+            
+            # Додаємо до списку опублікованих
+            article_id = hash(news_article.get('title', '') + news_article.get('link', ''))
+            self.posted_articles.add(article_id)
             
             # Перекладаємо новину на українську мову
             logging.info("Переклад новини на українську...")
