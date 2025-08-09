@@ -16,6 +16,7 @@ from translator import NewsTranslator
 from PIL import Image
 import requests
 from io import BytesIO
+from bs4 import BeautifulSoup
 
 # Налаштування логування без емодзі
 logging.basicConfig(
@@ -33,12 +34,26 @@ class SimpleInstagramBot:
         self.content_generator = ContentGenerator()
         self.instagram_publisher = InstagramPublisher()
         self.translator = NewsTranslator()
-        self.posted_articles = set()
+        self.posted_articles = self.load_posted_articles()
     
-
+    def load_posted_articles(self):
+        """Завантажує список опублікованих статей з файлу"""
+        try:
+            import json
+            with open('posted_articles.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return set(data)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return set()
     
-
-    
+    def save_posted_articles(self):
+        """Зберігає список опублікованих статей у файл"""
+        try:
+            import json
+            with open('posted_articles.json', 'w', encoding='utf-8') as f:
+                json.dump(list(self.posted_articles), f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logging.error(f"Помилка збереження списку постів: {e}")
 
 
     
@@ -137,20 +152,18 @@ class SimpleInstagramBot:
         else:
             return 'news'
     
-    def find_highest_quality_news(self):
-        """Знаходить новину з найвищою якістю фото серед ВСІХ RSS джерел"""
-        logging.info("🔍 Аналіз ВСІХ RSS джерел для пошуку найякісніших фото...")
+    def find_news_with_image(self):
+        """Знаходить першу новину з якісним зображенням"""
+        logging.info("🔍 Пошук новини з якісним фото...")
         
         all_news = self.news_collector.collect_fresh_news()
         if not all_news:
             logging.error("❌ RSS джерела недоступні")
             return None
             
-        best_news = None
-        best_quality = 0
         analyzed_count = 0
         
-        # Аналізуємо новини з усіх джерел
+        # Шукаємо першу новину з фото
         for article in all_news:
             analyzed_count += 1
             
@@ -164,85 +177,58 @@ class SimpleInstagramBot:
             if not title or len(title) < 10 or title == 'Новина з RSS':
                 continue
                 
-            logging.info(f"📊 Аналізую #{analyzed_count}: {title[:50]}...")
+            logging.info(f"📊 Перевіряю #{analyzed_count}: {title[:50]}...")
             
-            # Аналізуємо якість зображень в цій новині
-            image_info = self.analyze_image_quality_in_article(article)
+            # Перевіряємо чи є якісне зображення
+            image = self.get_image_from_news(article)
             
-            if image_info and image_info['total_pixels'] > best_quality:
-                best_quality = image_info['total_pixels']
-                best_news = {
+            if image:
+                logging.info(f"✅ Знайдено новину з фото: {title[:50]}...")
+                return {
                     'article': article,
-                    'image_info': image_info
+                    'image': image
                 }
-                logging.info(f"🏆 НОВИЙ ЛІДЕР: {image_info['width']}x{image_info['height']} ({image_info['total_pixels']} пікселів)")
             
-            # Обмежуємо кількість перевірок для продуктивності
-            if analyzed_count >= 30:
+            # Обмежуємо кількість перевірок
+            if analyzed_count >= 50:
                 break
                 
-        if best_news:
-            logging.info(f"✅ ВИБРАНО НАЙКРАЩУ: {best_news['image_info']['width']}x{best_news['image_info']['height']} ({best_news['image_info']['total_pixels']} пікселів)")
-            return best_news
-        else:
-            logging.warning("❌ Не знайдено новин з якісними фото")
-            return None
+        logging.warning("❌ Не знайдено новин з якісними фото")
+        return None
 
     def create_and_publish_post(self, max_attempts=50):
-        """Створення та публікація поста з найвищою якістю фото"""
+        """Створення та публікація поста"""
         try:
-            logging.info("🎯 Початок пошуку найякісніших фото серед ВСІХ RSS джерел...")
+            logging.info("🎯 Пошук новини з якісним фото...")
             
             if max_attempts <= 0:
                 logging.error("❌ Досягнуто максимум спроб")
                 return False
             
-            # 1. Знаходимо новину з найвищою якістю фото серед ВСІХ джерел
-            best_news = self.find_highest_quality_news()
-            if not best_news:
-                logging.error("❌ Не знайдено новин з якісними фото в жодному джерелі")
+            # 1. Знаходимо новину з фото
+            news_data = self.find_news_with_image()
+            if not news_data:
+                logging.error("❌ Не знайдено новин з якісними фото")
                 return False
                 
             # Витягуємо дані
-            news_article = best_news['article']
-            image_info = best_news['image_info']
+            news_article = news_data['article']
+            image = news_data['image']
             
-            logging.info(f"✅ Обрано найкращу новину: {news_article.get('title', 'Без заголовка')}")
-            logging.info(f"📸 Якість фото: {image_info['width']}x{image_info['height']} ({image_info['total_pixels']} пікселів)")
+            logging.info(f"✅ Обрано новину: {news_article.get('title', 'Без заголовка')}")
+            logging.info(f"📸 Розмір фото: {image.size[0]}x{image.size[1]}")
             
             # Додаємо до списку опублікованих
             article_id = hash(news_article.get('title', '') + news_article.get('link', ''))
             self.posted_articles.add(article_id)
+            self.save_posted_articles()  # Зберігаємо після кожного додавання
             
             # Перекладаємо новину на українську мову
             logging.info("Переклад новини на українську...")
             ukrainian_article = self.translator.translate_news_article(news_article)
             logging.info(f"Переклад завершено: {ukrainian_article.get('title', 'Без заголовка')}")
             
-            # 2. Завантажуємо найкраще зображення
-            logging.info(f"📥 Завантажую найякісніше фото з {image_info['url']}")
-            try:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-                    'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
-                    'Referer': news_article.get('link', ''),
-                    'Connection': 'keep-alive'
-                }
-                
-                response = requests.get(image_info['url'], timeout=15, headers=headers)
-                if response.status_code == 200:
-                    image = Image.open(BytesIO(response.content))
-                    logging.info(f"✅ Завантажено найякісніше фото: {image.size[0]}x{image.size[1]}")
-                else:
-                    logging.error(f"❌ Помилка завантаження фото: {response.status_code}")
-                    return self.create_and_publish_post(max_attempts - 1)
-                    
-            except Exception as e:
-                logging.error(f"❌ Помилка при завантаженні фото: {e}")
-                return self.create_and_publish_post(max_attempts - 1)
-            
-            # 3. Використовуємо оригінальне зображення БЕЗ обробки
+            # 2. Використовуємо оригінальне зображення БЕЗ обробки
             logging.info("✅ Використовую оригінальне фото без обробки")
             processed_img = image
                 
@@ -409,15 +395,16 @@ class SimpleInstagramBot:
         logging.info("\n🔧 Додайте ці джерела до config.py для покращення якості!")
     
     def get_image_from_news(self, news_article):
-        """Отримує реальне зображення з новини"""
+        """Отримує ЯКІСНЕ оригінальне зображення з новини"""
         return self._analyze_images_only(news_article)
     
+
     def _analyze_images_only(self, news_article):
-        """Тільки аналізує реальні зображення без fallback"""
+        """Тільки аналізує реальні зображення без fallback - з повним завантаженням статті"""
         # Спочатку пробуємо взяти реальне зображення з новини
         image_urls = []
         
-        # Додаємо більше джерел зображень
+        # 1. Додаємо зображення з RSS
         if news_article.get('rss_image'):
             image_urls.append(news_article['rss_image'])
         if news_article.get('top_image'):
@@ -425,13 +412,20 @@ class SimpleInstagramBot:
         if news_article.get('images'):
             image_urls.extend(news_article['images'][:5])
             
-        # Додаємо зображення з опису
+        # 2. Додаємо зображення з опису RSS
         description = news_article.get('description', '') or news_article.get('summary', '')
         if description:
             img_urls_from_desc = self.extract_images_from_html(description)
             image_urls.extend(img_urls_from_desc)
         
-        # Пробуємо знайти оригінальні зображення
+        # 3. ГОЛОВНЕ: Завантажуємо повну статтю з сайту для кращих зображень
+        article_url = news_article.get('link', '')
+        if article_url:
+            logging.info(f"🔍 Завантажую повну статтю для кращих зображень: {article_url[:50]}...")
+            page_images = self.extract_images_from_full_article(article_url)
+            image_urls.extend(page_images)
+        
+        # 4. Пробуємо знайти оригінальні версії зображень
         enhanced_urls = []
         for url in image_urls:
             enhanced_url = self.try_get_larger_image_url(url)
@@ -445,6 +439,14 @@ class SimpleInstagramBot:
         if not image_urls:
             return None
             
+        # Імпортуємо вимоги до якості
+        from config import IMAGE_REQUIREMENTS
+        min_width = IMAGE_REQUIREMENTS['min_width']
+        min_height = IMAGE_REQUIREMENTS['min_height'] 
+        min_pixels = IMAGE_REQUIREMENTS['min_pixels']
+        
+        logging.info(f"📏 Поточні вимоги: мін. {min_width}x{min_height}, мін. пікселів: {min_pixels}")
+        
         # Перевіряємо кожне зображення
         for i, image_url in enumerate(image_urls):
             try:
@@ -465,17 +467,28 @@ class SimpleInstagramBot:
                     img = Image.open(BytesIO(response.content))
                     width, height = img.size
                     
-                    # РЕАЛІСТИЧНА ПЕРЕВІРКА - приймаємо ВСІ якісні фото
-                    if width < 400 or height < 300:  # Базові мінімуми
+                    # РЕАЛІСТИЧНІ ВИМОГИ ДО ЯКОСТІ
+                    logging.info(f"🔍 Перевіряю зображення: {width}x{height}")
+                    
+                    if width < min_width or height < min_height:  # 600x400 мінімум
+                        logging.warning(f"❌ Зображення замале: {width}x{height} (потрібно мінімум {min_width}x{min_height})")
                         continue
                         
                     total_pixels = width * height
-                    if total_pixels < 120000:  # 120K пікселів мінімум (400x300)
+                    if total_pixels < min_pixels:  # 240K пікселів мінімум
+                        logging.warning(f"❌ Недостатньо пікселів: {total_pixels} (потрібно мінімум {min_pixels})")
                         continue
                     
                     # ПРИЙМАЄМО ВСІ ОРІЄНТАЦІЇ - горизонтальні, вертикальні, квадратні
-                    logging.info(f"✅ Знайдено якісне фото: {width}x{height} ({total_pixels} пікселів)")
+                    logging.info(f"✅ ЗНАЙДЕНО ЯКІСНЕ ФОТО: {width}x{height} ({total_pixels} пікселів)")
                     
+                    # Конвертуємо в RGB для Instagram (виправляє помилку з mode P)
+                    if img.mode != 'RGB':
+                        original_mode = img.mode
+                        img = img.convert('RGB')
+                        logging.info(f"🔄 Конвертовано з {original_mode} в RGB")
+                    
+                    logging.info(f"🎉 ПОВЕРТАЮ ЯКІСНЕ ЗОБРАЖЕННЯ {width}x{height}")
                     # Якщо дійшли сюди - зображення підходить!
                     return img
                     
@@ -484,85 +497,101 @@ class SimpleInstagramBot:
         
         return None  # Не знайдено підходящих зображень
     
-    def analyze_image_quality_in_article(self, news_article):
-        """Аналізує якість зображень в статті і повертає найкращу роздільну здатність"""
-        best_resolution = 0
-        best_image_info = None
-        
-        # Збираємо всі потенційні URL зображень
-        image_urls = []
-        if news_article.get('rss_image'):
-            image_urls.append(news_article['rss_image'])
-        if news_article.get('top_image'):
-            image_urls.append(news_article['top_image'])
-        if news_article.get('images'):
-            image_urls.extend(news_article['images'][:5])
+    def extract_images_from_full_article(self, article_url):
+        """Завантажує повну статтю і витягує ВСІ якісні зображення з ОРИГІНАЛЬНИМИ розмірами"""
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
             
-        description = news_article.get('description', '') or news_article.get('summary', '')
-        if description:
-            img_urls_from_desc = self.extract_images_from_html(description)
-            image_urls.extend(img_urls_from_desc)
-            
-        # Перевіряємо збільшені версії URL
-        enhanced_urls = []
-        for url in image_urls:
-            enhanced_url = self.try_get_larger_image_url(url)
-            if enhanced_url != url:
-                enhanced_urls.append(enhanced_url)
-        image_urls.extend(enhanced_urls)
-        
-        # Видаляємо дублікати
-        image_urls = list(set([url for url in image_urls if url and url.strip()]))
-        
-        if not image_urls:
-            return None
-            
-        # Аналізуємо кожне зображення
-        for image_url in image_urls:
-            try:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-                    'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
-                    'Referer': news_article.get('link', ''),
-                    'Connection': 'keep-alive'
-                }
+            response = requests.get(article_url, headers=headers, timeout=15)
+            if response.status_code != 200:
+                return []
                 
-                response = requests.get(image_url, timeout=10, headers=headers, stream=True)
-                if response.status_code == 200:
-                    content_length = response.headers.get('content-length')
-                    if content_length and int(content_length) < 5000:
-                        continue
-                        
-                    img = Image.open(BytesIO(response.content))
-                    width, height = img.size
-                    
-                    # Перевіряємо мінімальні вимоги
-                    if width < 400 or height < 300:
-                        continue
-                        
-                    total_pixels = width * height
-                    if total_pixels < 120000:
-                        continue
-                    
-                    # Порівнюємо з поточним кращим результатом
-                    if total_pixels > best_resolution:
-                        best_resolution = total_pixels
-                        best_image_info = {
-                            'width': width,
-                            'height': height,
-                            'total_pixels': total_pixels,
-                            'url': image_url,
-                            'article': news_article
-                        }
-                        
-            except Exception:
-                continue
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            image_urls = []
+            priority_images = []
+            
+            # Шукаємо зображення в різних тегах
+            img_tags = soup.find_all('img')
+            
+            for img in img_tags:
+                # Отримуємо URL з різних атрибутів - включаючи ОРИГІНАЛЬНІ версії
+                potential_srcs = [
+                    img.get('data-original'),    # Оригінал
+                    img.get('data-full'),        # Повний розмір
+                    img.get('data-large'),       # Великий розмір
+                    img.get('data-src'),         # Lazy loading
+                    img.get('data-lazy-src'),    # Lazy loading
+                    img.get('src')               # Стандартний
+                ]
                 
-        return best_image_info
-    
-
-
+                src = None
+                for potential_src in potential_srcs:
+                    if potential_src and potential_src.strip():
+                        src = potential_src.strip()
+                        break
+                
+                if not src:
+                    continue
+                    
+                # Перетворюємо відносні URL в абсолютні
+                if src.startswith('//'):
+                    src = 'https:' + src
+                elif src.startswith('/'):
+                    from urllib.parse import urljoin
+                    src = urljoin(article_url, src)
+                
+                # Фільтруємо непотрібні зображення ЩЕ ЖОРСТКІШЕ
+                if any(skip in src.lower() for skip in [
+                    'icon', 'logo', 'avatar', 'button', '1x1', 'pixel', 
+                    'advertisement', 'banner', 'social', 'share', 'thumb',
+                    'widget', 'badge', 'flag', 'arrow', 'spacer', 'clear'
+                ]):
+                    continue
+                
+                # Перевіряємо розміри по URL (якщо вказані)
+                import re
+                size_match = re.search(r'(\d{3,4})x(\d{3,4})', src)
+                if size_match:
+                    width, height = int(size_match.group(1)), int(size_match.group(2))
+                    if width < 800 or height < 600:
+                        continue  # Пропускаємо маленькі зображення
+                
+                # Перевіряємо чи це реальне зображення
+                if any(ext in src.lower() for ext in ['.jpg', '.jpeg', '.png', '.webp']):
+                    # ВИСОКИЙ ПРІОРИТЕТ для головних зображень
+                    img_classes = ' '.join(img.get('class', [])).lower()
+                    img_id = img.get('id', '').lower()
+                    parent_classes = ''
+                    if img.parent:
+                        parent_classes = ' '.join(img.parent.get('class', [])).lower()
+                    
+                    is_priority = any(pattern in img_classes + img_id + parent_classes for pattern in [
+                        'main', 'hero', 'article', 'content', 'featured', 'primary', 
+                        'story', 'news', 'photo', 'image', 'big', 'large', 'full'
+                    ])
+                    
+                    if is_priority:
+                        priority_images.insert(0, src)  # Найвищий пріоритет
+                    else:
+                        image_urls.append(src)
+            
+            # Об'єднуємо з пріоритетом
+            all_images = priority_images + image_urls
+            
+            logging.info(f"📸 Знайдено {len(all_images)} зображень на сторінці ({len(priority_images)} пріоритетних)")
+            return all_images[:15]  # Беремо більше для аналізу
+            
+        except Exception as e:
+            logging.warning(f"⚠️ Не вдалося завантажити статтю {article_url}: {e}")
+            return []
 
 def main():
     """Головна функція"""

@@ -11,41 +11,44 @@ INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 # Telegram channel link
 TELEGRAM_CHANNEL_LINK = os.getenv('TELEGRAM_CHANNEL_LINK', 'https://t.me/your_channel')
 
-# News sources - ПЕРЕВІРЕНІ українські джерела з фотографіями
+# News sources - ДЖЕРЕЛА З ЯКІСНИМИ ВЕЛИКИМИ ФОТОГРАФІЯМИ
 NEWS_SOURCES = [
-    # Основні робочі джерела
-    'https://www.ukrinform.ua/rss/block-lastnews',  # Укрінформ - працює, має фото
-    'https://24tv.ua/rss/',  # 24 канал - працює, має фото
-    'https://tsn.ua/rss/full.rss',  # ТСН - працює, має фото
-    'https://armyinform.com.ua/feed/',  # АрміяInform - працює, військові фото
+    # ПРІОРИТЕТНІ джерела з великими фото
+    'https://tsn.ua/rss/full.rss',  # ТСН - має високоякісні фото
+    'https://24tv.ua/rss/',  # 24 канал - багато фото хорошої якості
+    'https://www.ukrinform.ua/rss/block-lastnews',  # Укрінформ - офіційні фото
+    'https://www.obozrevatel.com/rss.xml',  # Обозреватель - якісні зображення
     
-    # Додаткові рекомендовані джерела з фото
-    'https://www.dw.com/uk/rss/news',  # Deutsche Welle українською
-    'https://www.ukrinform.ua/rss/block-war',  # Укрінформ військові новини
+    # Міжнародні джерела з професійними фото
+    'https://www.dw.com/uk/rss/news',  # Deutsche Welle - професійна фотожурналістика
+    'https://www.eurointegration.com.ua/rss/',  # Європейська правда - якісні фото
+    'https://www.bbc.com/ukrainian/rss.xml',  # BBC Україна - професійні фото
+    
+    # Спеціалізовані джерела
+    'https://armyinform.com.ua/feed/',  # АрміяInform - офіційні військові фото
+    'https://www.ukrinform.ua/rss/block-war',  # Військові новини з фото
+    'https://interfax.com.ua/news/rss/',  # Інтерфакс - агентські фото
+    
+    # Додаткові якісні джерела
     'https://espreso.tv/rss',  # Еспресо ТВ
-    'https://www.eurointegration.com.ua/rss/',  # Європейська правда
-    'https://interfax.com.ua/news/rss/',  # Інтерфакс Україна
     'https://censor.net/includes/news_rss.php',  # Цензор.нет
-    'https://www.obozrevatel.com/rss.xml',  # Обозреватель
     'https://gordonua.com/xml/rss_category/1.html',  # Гордон
-    
-    # Резервні джерела
     'https://www.pravda.com.ua/rss/',  # Українська правда
     'https://hromadske.ua/rss',  # Громадське медіа
     'https://www.radiosvoboda.org/api/zmgqoemtkv',  # Радіо Свобода
     'https://zn.ua/rss/',  # Дзеркало тижня
 ]
 
-# Image requirements - ПРИЙМАЄМО ВСІ ЯКІСНІ ФОТО
+# Image requirements - РЕАЛІСТИЧНІ ВИМОГИ ДО ЯКОСТІ РЕАЛЬНИХ ФОТО
 IMAGE_REQUIREMENTS = {
-    'min_width': 400,        # Мінімум для реальних зображень
-    'min_height': 300,       # Мінімум для реальних зображень
-    'preferred_min_width': 600,   # Знижений бажаний мінімум
-    'preferred_min_height': 400,  # Знижений бажаний мінімум
-    'max_scale_factor': 3.0,      # Розумне збільшення для якості
-    'aspect_ratio_range': (0.2, 5.0),  # ПРИЙМАЄМО ВСІ ОРІЄНТАЦІЇ
+    'min_width': 600,        # Реалістичний мінімум для новинних сайтів
+    'min_height': 400,       # Реалістичний мінімум для новинних сайтів
+    'preferred_min_width': 800,   # Ідеальний розмір
+    'preferred_min_height': 600,  # Ідеальний розмір
+    'max_scale_factor': 2.0,       # Розумне збільшення
+    'aspect_ratio_range': (0.3, 3.0),  # Розумні пропорції
     'max_file_size_mb': 30,
-    'min_pixels': 120000     # Мінімум 400x300 пікселів
+    'min_pixels': 240000     # Мінімум 600x400 пікселів (реалістично)
 }
 
 # OpenAI for content generation

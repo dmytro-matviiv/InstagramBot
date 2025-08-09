@@ -226,11 +226,19 @@ class ContentGenerator:
         return '\n\n'.join(formatted_parts)
     
     def clean_content(self, text):
-        """Очищає текст від непотрібних елементів"""
+        """Очищає текст від непотрібних елементів включаючи HTML"""
         if not text:
             return text
         
         import re
+        
+        # ВИДАЛЯЄМО ВСІ HTML теги та атрибути
+        text = re.sub(r'<[^>]+>', '', text)  # Всі HTML теги
+        text = re.sub(r'&[a-zA-Z0-9#]+;', '', text)  # HTML entities
+        
+        # Видаляємо посилання та URL
+        text = re.sub(r'https?://[^\s]+', '', text)
+        text = re.sub(r'www\.[^\s]+', '', text)
         
         # Видаляємо зірочки
         text = re.sub(r'\*+', '', text)
@@ -250,9 +258,11 @@ class ContentGenerator:
         text = re.sub(r'©.*$', '', text, flags=re.MULTILINE)
         text = re.sub(r'Джерело:.*$', '', text, flags=re.MULTILINE)
         text = re.sub(r'Фото:.*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'Повний текст новини.*$', '', text, flags=re.MULTILINE)
         
-        # Видаляємо зайві пробіли
+        # Видаляємо зайві пробіли та порожні рядки
         text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r'\n\s*\n', '\n', text)
         text = text.strip()
         
         return text
