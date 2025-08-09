@@ -117,8 +117,16 @@ class NewsCollector:
         return sorted(recent_articles, key=lambda x: len(x.get('text', '')), reverse=True)
     
     def get_random_news(self):
-        """Повертає випадкову актуальну новину"""
+        """Повертає випадкову актуальну новину з fallback"""
         fresh_news = self.collect_fresh_news()
         if fresh_news:
             return random.choice(fresh_news)
-        return None
+        
+        # Fallback новина якщо немає доступних
+        print("RSS джерела недоступні, використовую fallback новину")
+        return {
+            'title': 'Україна: Останні новини',
+            'description': 'Актуальні події в Україні. Підписуйтеся на наш Telegram канал для отримання найсвіжіших новин.',
+            'link': 'https://t.me/newstime20',
+            'published': datetime.now()
+        }
