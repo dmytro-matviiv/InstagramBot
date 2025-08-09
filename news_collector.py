@@ -14,18 +14,33 @@ class NewsCollector:
         self.collected_articles = []
     
     def fetch_rss_news(self, rss_url):
-        """Збирає новини з RSS каналів"""
+        """Збирає новини з RSS каналів з покращеними headers"""
         try:
-            feed = feedparser.parse(rss_url)
+            # Покращені headers для обходу блокування
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+                'Accept-Language': 'uk-UA,uk;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive'
+            }
+            
+            # Робимо запит з headers
+            response = requests.get(rss_url, headers=headers, timeout=20)
+            feed = feedparser.parse(response.content)
             articles = []
             
-            for entry in feed.entries[:10]:  # Беремо останні 10 новин
+            for entry in feed.entries[:15]:  # Більше новин для пошуку з фото
                 article_data = {
-                    'title': entry.title,
-                    'link': entry.link,
+                    'title': getattr(entry, 'title', 'Без заголовка'),
+                    'link': getattr(entry, 'link', ''),
                     'published': entry.get('published', ''),
                     'summary': entry.get('summary', ''),
-                    'source': rss_url
+                    'description': entry.get('description', entry.get('summary', '')),
+                    'source': rss_url,
+                    # Пробуємо знайти зображення в RSS
+                    'rss_image': self.extract_image_from_entry(entry)
                 }
                 articles.append(article_data)
             
@@ -33,6 +48,34 @@ class NewsCollector:
         except Exception as e:
             print(f"Помилка при зборі з RSS {rss_url}: {e}")
             return []
+    
+    def extract_image_from_entry(self, entry):
+        """Витягує URL зображення з RSS entry"""
+        # Пробуємо різні поля де може бути зображення
+        image_url = None
+        
+        # 1. Медіа контент
+        if hasattr(entry, 'media_content') and entry.media_content:
+            for media in entry.media_content:
+                if media.get('type', '').startswith('image/'):
+                    image_url = media.get('url')
+                    break
+        
+        # 2. Enclosure
+        if not image_url and hasattr(entry, 'enclosures'):
+            for enclosure in entry.enclosures:
+                if enclosure.get('type', '').startswith('image/'):
+                    image_url = enclosure.get('href')
+                    break
+        
+        # 3. Links з типом image  
+        if not image_url and hasattr(entry, 'links'):
+            for link in entry.links:
+                if link.get('type', '').startswith('image/'):
+                    image_url = link.get('href')
+                    break
+        
+        return image_url
     
     def get_article_content(self, url):
         """Отримує повний контент статті"""

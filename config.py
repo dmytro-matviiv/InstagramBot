@@ -11,18 +11,18 @@ INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 # Telegram channel link
 TELEGRAM_CHANNEL_LINK = os.getenv('TELEGRAM_CHANNEL_LINK', 'https://t.me/your_channel')
 
-# News sources - Українські та про Україну (перевірені на доступність)
+# News sources - Українські джерела З ФОТОГРАФІЯМИ
 NEWS_SOURCES = [
-    'https://www.pravda.com.ua/rss/',
-    'https://www.radiosvoboda.org/api/zmgqoemtkv',
-    'https://www.bbc.com/ukrainian/news/rss.xml',
-    'https://suspilne.media/rss/',
-    'https://hromadske.ua/rss',
-    'https://24tv.ua/rss/',
-    'https://www.unian.ua/rss/news.xml',
-    'https://censor.net/ua/rss/news',
-    'https://www.ukrinform.ua/rss/block-lastnews',
-    'https://lb.ua/rss'
+    'https://www.bbc.com/ukrainian/news/rss.xml',  # BBC завжди має фото
+    'https://www.ukrinform.ua/rss/block-lastnews',  # Укрінформ має фото в більшості новин
+    'https://suspilne.media/rss/',  # Суспільне має якісні фото
+    'https://24tv.ua/rss/',  # 24tv має фото
+    'https://www.pravda.com.ua/rss/',  # Правда часто має фото
+    'https://hromadske.ua/rss',  # Громадське має фото
+    'https://www.radiosvoboda.org/api/zmgqoemtkv',  # Радіо Свобода має фото
+    'https://www.unn.com.ua/rss/news_uk.xml',  # УНН з фото
+    'https://www.rbc.ua/static/rss/ukr/all.xml',  # RBC України з фото
+    'https://zn.ua/rss/'  # Дзеркало тижня з фото
 ]
 
 # Image requirements for horizontal posts

@@ -89,8 +89,8 @@ class ContentGenerator:
             category = self.detect_news_category(news_title, news_content)
             emoji = random.choice(emoji_sets.get(category, emoji_sets['default']))
             
-            # Покращене форматування контенту
-            formatted_content = self.format_news_content(news_content)
+            # Розширене форматування контенту
+            formatted_content = self.format_news_content_extended(news_content)
             
             # Додаємо цікаві фрази-зачіпки
             hooks = [
@@ -188,6 +188,42 @@ class ContentGenerator:
         formatted = formatted.replace('?', '? 🤔')
         
         return formatted
+    
+    def format_news_content_extended(self, content):
+        """Розширене форматування контенту з більшою кількістю тексту"""
+        if not content:
+            return "Детальна інформація у повному тексті новини. Слідкуйте за оновленнями!"
+        
+        # Очищаємо контент
+        content = self.clean_content(content)
+        
+        # Розбиваємо на речення
+        sentences = content.split('.')
+        
+        # Беремо більше речень для розширеного контенту (5-6 замість 3-4)
+        good_sentences = []
+        for sentence in sentences[:10]:
+            sentence = sentence.strip()
+            if (len(sentence) > 15 and len(sentence) < 250 and 
+                not self.is_unwanted_sentence(sentence)):
+                good_sentences.append(sentence)
+            if len(good_sentences) >= 6:
+                break
+        
+        if not good_sentences:
+            return content[:400] + "..." if len(content) > 400 else content
+        
+        # Форматуємо з розділювачами для кращого читання
+        formatted_parts = []
+        for i, sentence in enumerate(good_sentences):
+            if i == 0:
+                formatted_parts.append(f"🔹 {sentence}.")
+            elif i < 3:
+                formatted_parts.append(f"▫️ {sentence}.")
+            else:
+                formatted_parts.append(f"• {sentence}.")
+        
+        return '\n\n'.join(formatted_parts)
     
     def clean_content(self, text):
         """Очищає текст від непотрібних елементів"""

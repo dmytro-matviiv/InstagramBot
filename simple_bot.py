@@ -36,79 +36,98 @@ class SimpleInstagramBot:
         self.posted_articles = set()
     
     def create_text_image(self, title, category="news"):
-        """Створює професійний новинний банер"""
+        """Створює красивий читабельний новинний банер"""
         # Параметри зображення (горизонтальне для Instagram)
         width, height = 1350, 1080
         
-        # Професійні кольори для новин (замість яскравого жовтого)
+        # Українські патріотичні кольори
         colors = {
-            'war': '#1E3A8A',      # Темно-синій (серйозні військові новини)
-            'news': '#1F2937',     # Темно-сірий (універсальні новини)
-            'politics': '#7C2D12', # Темно-коричневий  
-            'technology': '#064E3B', # Темно-зелений
-            'world': '#991B1B',    # Темно-червоний
-            'business': '#1E40AF'  # Сталево-синій
+            'war': ('#0057B7', '#FFD700'),      # Синій + жовтий український прапор
+            'news': ('#2563EB', '#FFFFFF'),     # Синій + білий
+            'politics': ('#DC2626', '#FFFFFF'), # Червоний + білий  
+            'technology': ('#059669', '#FFFFFF'), # Зелений + білий
+            'world': ('#7C3AED', '#FFFFFF'),    # Фіолетовий + білий
+            'business': ('#EA580C', '#FFFFFF')  # Помаранчевий + білий
         }
         
-        bg_color = colors.get(category, colors['news'])
+        bg_color, text_color = colors.get(category, colors['news'])
         
-        # Створюємо зображення з градієнтом
+        # Створюємо красивий градієнт фон
         img = Image.new('RGB', (width, height), bg_color)
         
-        # Додаємо градієнт (темніше знизу)
+        # Конвертуємо hex в RGB
+        def hex_to_rgb(hex_color):
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        
+        bg_rgb = hex_to_rgb(bg_color)
+        
+        # Створюємо вертикальний градієнт
         for y in range(height):
             alpha = y / height
-            r = int(int(bg_color[1:3], 16) * (1 - alpha * 0.3))
-            g = int(int(bg_color[3:5], 16) * (1 - alpha * 0.3))
-            b = int(int(bg_color[5:7], 16) * (1 - alpha * 0.3))
-            color = f"#{r:02x}{g:02x}{b:02x}"
+            # Робимо градієнт від світлішого до темнішого
+            r = int(bg_rgb[0] * (1 - alpha * 0.3))
+            g = int(bg_rgb[1] * (1 - alpha * 0.3))
+            b = int(bg_rgb[2] * (1 - alpha * 0.3))
             
             for x in range(width):
                 img.putpixel((x, y), (r, g, b))
         
         draw = ImageDraw.Draw(img)
         
-        # Спробуємо завантажити шрифт
+        # Завантажуємо кращий шрифт
         try:
-            # Розмір шрифту залежно від довжини тексту
-            font_size = max(60, min(100, int(800 / len(title) * 10)))
-            font = ImageFont.load_default()
-        except:
-            font = ImageFont.load_default()
+            # Великий читабельний шрифт
+            title_font = ImageFont.truetype("arial.ttf", 58)
+        except IOError:
+            title_font = ImageFont.load_default()
         
-        # Додаємо текст
-        # Розбиваємо довгий текст на рядки
+        # Скорочуємо заголовок якщо занадто довгий
+        if len(title) > 50:
+            title = title[:47] + "..."
+        
+        # Розбиваємо на рядки (максимум 3 рядки)
         words = title.split()
         lines = []
         current_line = []
+        max_chars_per_line = 20
         
         for word in words:
             test_line = ' '.join(current_line + [word])
-            # Простий підрахунок ширини (приблизно)
-            if len(test_line) < 15:  # Максимум символів в рядку
+            if len(test_line) <= max_chars_per_line:
                 current_line.append(word)
             else:
                 if current_line:
                     lines.append(' '.join(current_line))
                 current_line = [word]
-        
+                
         if current_line:
             lines.append(' '.join(current_line))
         
-        # Центруємо текст
-        total_height = len(lines) * 80
-        start_y = (height - total_height) // 2
+        # Обмежуємо до 3 рядків
+        lines = lines[:3]
         
-        for i, line in enumerate(lines[:5]):  # Максимум 5 рядків
-            bbox = draw.textbbox((0, 0), line, font=font)
+        # Центруємо текст
+        line_height = 80
+        total_text_height = len(lines) * line_height
+        start_y = (height - total_text_height) // 2 - 50
+        
+        # Конвертуємо колір тексту в RGB
+        text_rgb = hex_to_rgb(text_color) if text_color != '#FFFFFF' else (255, 255, 255)
+        
+        # Малюємо кожен рядок
+        for i, line in enumerate(lines):
+            # Центруємо горизонтально
+            bbox = draw.textbbox((0, 0), line, font=title_font)
             text_width = bbox[2] - bbox[0]
             x = (width - text_width) // 2
-            y = start_y + i * 80
+            y = start_y + i * line_height
             
-            # Тінь тексту
-            draw.text((x+2, y+2), line, font=font, fill='black')
+            # Контрастна тінь для читабельності
+            shadow_color = (0, 0, 0) if text_color == '#FFFFFF' else (255, 255, 255)
+            draw.text((x+3, y+3), line, font=title_font, fill=shadow_color)
             # Основний текст
-            draw.text((x, y), line, font=font, fill='white')
+            draw.text((x, y), line, font=title_font, fill=text_rgb)
         
         # Додаємо українську символіку
         if category == 'war':
@@ -116,15 +135,15 @@ class SimpleInstagramBot:
         else:
             logo_text = "🇺🇦 УКРАЇНИ НОВИНИ"
         
-        logo_bbox = draw.textbbox((0, 0), logo_text, font=font)
+        logo_bbox = draw.textbbox((0, 0), logo_text, font=title_font)
         logo_width = logo_bbox[2] - logo_bbox[0]
         
         # Тінь для лого
-        draw.text(((width - logo_width) // 2 + 2, height - 150 + 2), logo_text, 
-                 font=font, fill='black')
+        draw.text(((width - logo_width) // 2 + 2, height - 120 + 2), logo_text, 
+                 font=title_font, fill=(0, 0, 0))
         # Основний лого
-        draw.text(((width - logo_width) // 2, height - 150), logo_text, 
-                 font=font, fill='white')
+        draw.text(((width - logo_width) // 2, height - 120), logo_text, 
+                 font=title_font, fill=(255, 255, 255))
         
         # Додаємо рамку
         border_width = 5
@@ -132,42 +151,172 @@ class SimpleInstagramBot:
         
         return img
     
+    def create_vertical_text_image(self, title, category="news"):
+        """Створює вертикальне текстове зображення для Instagram Stories"""
+        # Параметри вертикального зображення для Instagram Stories (9:16)
+        width, height = 1080, 1920
+        
+        # Українські патріотичні кольори
+        colors = {
+            'war': ('#0057B7', '#FFD700'),      # Синій + жовтий український прапор
+            'news': ('#2563EB', '#FFFFFF'),     # Синій + білий
+            'politics': ('#DC2626', '#FFFFFF'), # Червоний + білий  
+            'technology': ('#059669', '#FFFFFF'), # Зелений + білий
+            'world': ('#7C3AED', '#FFFFFF'),    # Фіолетовий + білий
+            'business': ('#EA580C', '#FFFFFF')  # Помаранчевий + білий
+        }
+        
+        bg_color, text_color = colors.get(category, colors['news'])
+        
+        # Створюємо вертикальний фон
+        img = Image.new('RGB', (width, height), bg_color)
+        
+        # Конвертуємо hex в RGB
+        def hex_to_rgb(hex_color):
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        
+        bg_rgb = hex_to_rgb(bg_color)
+        
+        # Створюємо вертикальний градієнт
+        for y in range(height):
+            alpha = y / height
+            r = int(bg_rgb[0] * (1 - alpha * 0.2))
+            g = int(bg_rgb[1] * (1 - alpha * 0.2))
+            b = int(bg_rgb[2] * (1 - alpha * 0.2))
+            
+            for x in range(width):
+                img.putpixel((x, y), (r, g, b))
+        
+        draw = ImageDraw.Draw(img)
+        
+        # Завантажуємо шрифт
+        try:
+            title_font = ImageFont.truetype("arial.ttf", 72)
+            subtitle_font = ImageFont.truetype("arial.ttf", 48)
+        except IOError:
+            title_font = ImageFont.load_default()
+            subtitle_font = ImageFont.load_default()
+        
+        # Скорочуємо заголовок
+        if len(title) > 60:
+            title = title[:57] + "..."
+        
+        # Розбиваємо на рядки для вертикального формату
+        words = title.split()
+        lines = []
+        current_line = []
+        max_chars_per_line = 18  # Менше символів для вертикального формату
+        
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            if len(test_line) <= max_chars_per_line:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        # Обмежуємо до 4 рядків для вертикального формату
+        lines = lines[:4]
+        
+        # Центруємо текст у верхній половині
+        line_height = 90
+        total_text_height = len(lines) * line_height
+        start_y = (height // 3) - (total_text_height // 2)
+        
+        # Конвертуємо колір тексту
+        text_rgb = hex_to_rgb(text_color) if text_color != '#FFFFFF' else (255, 255, 255)
+        
+        # Малюємо кожен рядок
+        for i, line in enumerate(lines):
+            bbox = draw.textbbox((0, 0), line, font=title_font)
+            text_width = bbox[2] - bbox[0]
+            x = (width - text_width) // 2
+            y = start_y + i * line_height
+            
+            # Контрастна тінь
+            shadow_color = (0, 0, 0) if text_color == '#FFFFFF' else (255, 255, 255)
+            draw.text((x+3, y+3), line, font=title_font, fill=shadow_color)
+            # Основний текст
+            draw.text((x, y), line, font=title_font, fill=text_rgb)
+        
+        # Додаємо українську символіку внизу
+        if category == 'war':
+            logo_text = "🇺🇦 НОВИНИ УКРАЇНИ 🇺🇦"
+        else:
+            logo_text = "🇺🇦 УКРАЇНА СЬОГОДНІ 🇺🇦"
+        
+        logo_bbox = draw.textbbox((0, 0), logo_text, font=subtitle_font)
+        logo_width = logo_bbox[2] - logo_bbox[0]
+        
+        # Логотип внизу
+        logo_y = height - 200
+        draw.text(((width - logo_width) // 2 + 2, logo_y + 2), logo_text, 
+                 font=subtitle_font, fill=(0, 0, 0))
+        draw.text(((width - logo_width) // 2, logo_y), logo_text, 
+                 font=subtitle_font, fill=(255, 255, 255))
+        
+        # Додаємо рамку
+        border_width = 8
+        draw.rectangle([0, 0, width-1, height-1], outline='white', width=border_width)
+        
+        return img
+    
     def get_image_from_news(self, news_article):
-        """Намагається отримати зображення з новини або створює власне"""
-        # Спочатку пробуємо взяти зображення з новини
+        """Отримує реальне зображення з новини та конвертує у вертикальний формат"""
+        # Спочатку пробуємо взяти реальне зображення з новини
+        image_urls = []
         if news_article.get('top_image'):
+            image_urls.append(news_article['top_image'])
+        if news_article.get('images'):
+            image_urls.extend(news_article['images'][:3])  # Перші 3 зображення
+            
+        for image_url in image_urls:
             try:
-                response = requests.get(news_article['top_image'], timeout=10)
+                logging.info(f"Завантажую реальне зображення: {image_url}")
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                response = requests.get(image_url, timeout=15, headers=headers)
                 if response.status_code == 200:
                     img = Image.open(BytesIO(response.content))
                     
-                    # Перевіряємо розміри та конвертуємо у вертикальне
+                    # Перевіряємо якість зображення
                     width, height = img.size
+                    if width < 300 or height < 300:
+                        continue  # Пропускаємо маленькі зображення
                     
-                    # Якщо зображення вертикальне, обрізаємо до горизонтального
-                    if height > width:
-                        # Обрізаємо до горизонтального формату
-                        target_width = height * 1.25  # співвідношення 5:4
-                        if width < target_width:
-                            # Розтягуємо по ширині
-                            img = img.resize((int(target_width), height), Image.Resampling.LANCZOS)
-                            width = int(target_width)
-                        
-                        # Тепер обрізаємо зверху та знизу
-                        target_height = width / 1.25
-                        top = (height - target_height) // 2
-                        img = img.crop((0, int(top), width, int(top + target_height)))
+                    logging.info(f"Оригінальне зображення: {width}x{height}")
                     
-                    # Змінюємо розмір до горизонтального формату Instagram  
-                    img = img.resize((1350, 1080), Image.Resampling.LANCZOS)
+                    # Конвертуємо у вертикальний формат для Instagram Stories (9:16)
+                    target_width = 1080
+                    target_height = 1920
+                    
+                    # Якщо зображення горизонтальне, робимо його квадратним
+                    if width > height:
+                        # Обрізаємо до квадрату (беремо центральну частину)
+                        crop_size = min(width, height)
+                        left = (width - crop_size) // 2
+                        top = (height - crop_size) // 2
+                        img = img.crop((left, top, left + crop_size, top + crop_size))
+                        logging.info(f"Обрізано до квадрату: {crop_size}x{crop_size}")
+                    
+                    # Масштабуємо до вертикального формату
+                    img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+                    logging.info(f"Фінальний розмір: {target_width}x{target_height}")
                     return img
+                    
             except Exception as e:
-                logging.info(f"Не вдалося завантажити зображення з новини: {e}")
+                logging.warning(f"Помилка завантаження {image_url}: {e}")
+                continue
         
-        # Якщо не вдалося, створюємо текстове зображення
-        title = news_article.get('title', 'Важливі новини')
-        category = self.detect_news_category(title, news_article.get('text', ''))
-        return self.create_text_image(title, category)
+        # Якщо не знайшли жодного зображення, повертаємо None
+        logging.warning("Не знайдено жодного придатного зображення в новині")
+        return None
     
     def detect_news_category(self, title, content):
         """Визначає категорію новини для українського контенту"""
@@ -213,8 +362,9 @@ class SimpleInstagramBot:
             logging.info("Збір новин...")
             all_news = self.news_collector.collect_fresh_news()
             
+            # Якщо RSS не працює - припиняємо роботу (потрібні тільки реальні новини з фото)
             if not all_news:
-                logging.error("Не вдалося знайти новини")
+                logging.error("RSS джерела недоступні і fallback заборонено. Неможливо знайти новини з фото.")
                 return False
             
             # Фільтруємо новини пов'язані з Україною
@@ -227,9 +377,9 @@ class SimpleInstagramBot:
             # Віддаємо пріоритет військовим новинам
             prioritized_news = self.translator.prioritize_war_news(ukraine_news)
             
-            # Обираємо якісну новину з пріоритетного списку
+            # Обираємо новину з фото - перевіряємо послідовно до знаходження
             selected_article = None
-            for article in prioritized_news[:15]:  # Перевіряємо топ-15
+            for article in prioritized_news[:30]:  # Перевіряємо більше новин
                 # Перевіряємо якість новини
                 title = article.get('title', '')
                 description = article.get('description', '')
@@ -241,18 +391,21 @@ class SimpleInstagramBot:
                     # Перевіряємо чи не публікували раніше
                     article_id = hash(title + article.get('link', ''))
                     if article_id not in self.posted_articles:
-                        selected_article = article
-                        break
+                        
+                        # ГОЛОВНЕ: Перевіряємо чи є фото в новині
+                        logging.info(f"Перевіряю наявність фото в новині: {title[:50]}...")
+                        test_image = self.get_image_from_news(article)
+                        
+                        if test_image is not None:
+                            logging.info("✅ Знайдено новину з фото!")
+                            selected_article = article
+                            break
+                        else:
+                            logging.info("❌ Новина без фото, перевіряю наступну...")
             
             if not selected_article:
-                logging.warning("Немає якісних новин для публікації, використовую fallback новину...")
-                # Створюємо fallback новину
-                selected_article = {
-                    'title': 'Україна: Важливі події сьогодні',
-                    'description': 'Стежте за актуальними подіями в Україні. Найважливіші новини дня від українських джерел.',
-                    'link': 'https://t.me/newstime20',
-                    'published': datetime.now()
-                }
+                logging.error("Не знайдено жодної новини з фото! Потрібно змінити RSS джерела")
+                return False
             
             news_article = selected_article
             
@@ -357,6 +510,8 @@ class SimpleInstagramBot:
         
         logging.info("Всі тести пройдено!")
         return True
+    
+
 
 def main():
     """Головна функція"""
