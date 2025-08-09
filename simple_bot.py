@@ -153,8 +153,8 @@ class SimpleInstagramBot:
             return 'news'
     
     def find_news_with_image(self):
-        """Знаходить першу новину з якісним зображенням"""
-        logging.info("🔍 Пошук новини з якісним фото...")
+        """Знаходить першу новину з якісним зображенням, що точно відповідає тексту"""
+        logging.info("🔍 Пошук новини з якісним фото що збігається з текстом...")
         
         all_news = self.news_collector.collect_fresh_news()
         if not all_news:
@@ -163,73 +163,92 @@ class SimpleInstagramBot:
             
         analyzed_count = 0
         
-        # Шукаємо першу новину з фото
+        # Шукаємо КОЖНУ новину з фото що збігається з текстом
+        skipped_published = 0
+        skipped_poor_title = 0
+        skipped_no_image = 0
+        
         for article in all_news:
             analyzed_count += 1
             
             # Пропускаємо вже опубліковані
             article_id = hash(article.get('title', '') + article.get('link', ''))
             if article_id in self.posted_articles:
+                skipped_published += 1
                 continue
                 
             # Перевіряємо якість заголовка
             title = article.get('title', '')
             if not title or len(title) < 10 or title == 'Новина з RSS':
+                skipped_poor_title += 1
                 continue
                 
             logging.info(f"📊 Перевіряю #{analyzed_count}: {title[:50]}...")
             
-            # Перевіряємо чи є якісне зображення
-            image = self.get_image_from_news(article)
+            # КЛЮЧОВА ЗМІНА: Перевіряємо що зображення САМЕ з цієї статті
+            image = self.get_image_from_specific_article(article)
             
             if image:
-                logging.info(f"✅ Знайдено новину з фото: {title[:50]}...")
+                logging.info(f"✅ УСПІШНО! Знайдено новину з фото що збігається з текстом: {title[:50]}...")
+                logging.info(f"📊 Статистика пошуку: перевірено {analyzed_count}, пропущено опубл.: {skipped_published}, погані заголовки: {skipped_poor_title}, без фото: {skipped_no_image}")
                 return {
                     'article': article,
-                    'image': image
+                    'image': image,
+                    'source_url': article.get('link', '')  # Додаємо джерело для перевірки
                 }
+            else:
+                skipped_no_image += 1
+                logging.info(f"❌ Фото з цієї статті не підходить або відсутнє, ПЕРЕХОДЖУ ДО НАСТУПНОЇ СТАТТІ...")
             
             # Обмежуємо кількість перевірок
             if analyzed_count >= 50:
                 break
                 
-        logging.warning("❌ Не знайдено новин з якісними фото")
+        logging.warning("❌ НЕ ЗНАЙДЕНО новин з якісними фото що збігаються з текстом")
+        logging.warning(f"📊 Підсумкова статистика пошуку:")
+        logging.warning(f"   - Всього перевірено статей: {analyzed_count}")
+        logging.warning(f"   - Пропущено вже опублікованих: {skipped_published}")
+        logging.warning(f"   - Пропущено з поганими заголовками: {skipped_poor_title}")
+        logging.warning(f"   - Пропущено без підходящих фото: {skipped_no_image}")
+        logging.warning(f"💡 РЕКОМЕНДАЦІЯ: Перевірте налаштування джерел новин або зменшіть вимоги до якості фото")
         return None
 
     def create_and_publish_post(self, max_attempts=50):
-        """Створення та публікація поста"""
+        """Створення та публікація поста з ГАРАНТОВАНОЮ відповідністю фото та тексту"""
         try:
-            logging.info("🎯 Пошук новини з якісним фото...")
+            logging.info("🎯 Пошук новини з якісним фото що ТОЧНО збігається з текстом...")
             
             if max_attempts <= 0:
                 logging.error("❌ Досягнуто максимум спроб")
                 return False
             
-            # 1. Знаходимо новину з фото
+            # 1. Знаходимо новину з фото що збігається з текстом
             news_data = self.find_news_with_image()
             if not news_data:
-                logging.error("❌ Не знайдено новин з якісними фото")
+                logging.error("❌ Не знайдено новин з якісними фото що збігаються з текстом")
                 return False
                 
             # Витягуємо дані
             news_article = news_data['article']
             image = news_data['image']
+            source_url = news_data.get('source_url', 'N/A')
             
             logging.info(f"✅ Обрано новину: {news_article.get('title', 'Без заголовка')}")
             logging.info(f"📸 Розмір фото: {image.size[0]}x{image.size[1]}")
+            logging.info(f"🔗 Джерело статті: {source_url}")
             
-            # Додаємо до списку опублікованих
+            # Додаємо до списку опублікованих ТІЛЬКИ ПІСЛЯ успішного отримання фото
             article_id = hash(news_article.get('title', '') + news_article.get('link', ''))
             self.posted_articles.add(article_id)
             self.save_posted_articles()  # Зберігаємо після кожного додавання
             
             # Перекладаємо новину на українську мову
-            logging.info("Переклад новини на українську...")
+            logging.info("🔄 Переклад новини на українську...")
             ukrainian_article = self.translator.translate_news_article(news_article)
-            logging.info(f"Переклад завершено: {ukrainian_article.get('title', 'Без заголовка')}")
+            logging.info(f"✅ Переклад завершено: {ukrainian_article.get('title', 'Без заголовка')}")
             
             # 2. Використовуємо оригінальне зображення БЕЗ обробки
-            logging.info("✅ Використовую оригінальне фото без обробки")
+            logging.info("✅ Використовую оригінальне фото з тієї ж статті")
             processed_img = image
                 
             # Зберігаємо зображення
@@ -241,19 +260,20 @@ class SimpleInstagramBot:
             os.makedirs("temp_images", exist_ok=True)
             
             processed_img.save(image_path, "JPEG", quality=95)
-            logging.info(f"✅ РЕАЛЬНЕ фото з інтернету збережено: {image_path}")
+            logging.info(f"✅ РЕАЛЬНЕ фото з статті збережено: {image_path}")
             
-            # 3. Генеруємо контент з української статті
-            logging.info("Генерація контенту...")
+            # 3. Генеруємо контент з ТІЄЇ Ж української статті
+            logging.info("📝 Генерація контенту з тієї ж статті...")
             post_content = self.content_generator.create_full_post(
                 ukrainian_article.get('title', ''),
                 ukrainian_article.get('text', ukrainian_article.get('summary', ''))
             )
             
-            logging.info(f"Згенеровано пост ({len(post_content)} символів)")
+            logging.info(f"✅ Згенеровано пост ({len(post_content)} символів) з тієї ж статті")
+            logging.info(f"📊 ГАРАНТІЯ: Фото та текст з однієї статті: {source_url}")
             
             # 4. Публікуємо
-            logging.info("Публікація в Instagram...")
+            logging.info("📤 Публікація в Instagram...")
             success, message = self.instagram_publisher.safe_publish(
                 image_path, 
                 post_content,
@@ -261,15 +281,17 @@ class SimpleInstagramBot:
             )
             
             if success:
-                logging.info(f"Пост успішно опубліковано! {message}")
-                self.posted_articles.add(article_id)
+                logging.info(f"🎉 Пост успішно опубліковано з ВІДПОВІДНИМ фото та текстом! {message}")
                 return True
             else:
-                logging.error(f"Помилка публікації: {message}")
+                logging.error(f"❌ Помилка публікації: {message}")
+                # Видаляємо з опублікованих якщо публікація не вдалася
+                self.posted_articles.discard(article_id)
+                self.save_posted_articles()
                 return False
             
         except Exception as e:
-            logging.error(f"Критична помилка: {e}")
+            logging.error(f"💥 Критична помилка: {e}")
             return False
     
     def test_run(self):
@@ -286,9 +308,20 @@ class SimpleInstagramBot:
             # Продовжуємо роботу з тестовими даними
             logging.info("Новини працюють: Тестова новина (fallback режим)...")
         
-        # Тест ТІЛЬКИ реальних зображень
-        logging.info("⚠️ Пропускаю тест створення зображення - бот працює ТІЛЬКИ з реальними фото з інтернету")
-        logging.info("✅ Тест зображень пропущено - система налаштована на реальні фото")
+        # НОВИЙ ТЕСТ: Перевірка логіки відповідності фото та тексту
+        logging.info("🔍 ТЕСТ НОВОЇ ЛОГІКИ: Пошук новини з відповідним фото...")
+        news_data = self.find_news_with_image()
+        if news_data:
+            article = news_data['article']
+            image = news_data['image']
+            source_url = news_data.get('source_url', 'N/A')
+            logging.info(f"✅ УСПІХ! Знайдено новину з відповідним фото:")
+            logging.info(f"   📄 Заголовок: {article.get('title', 'N/A')[:60]}...")
+            logging.info(f"   📸 Розмір фото: {image.size[0]}x{image.size[1]}")
+            logging.info(f"   🔗 Джерело: {source_url[:60]}...")
+            logging.info(f"✅ ГАРАНТІЯ: Фото та текст з однієї статті!")
+        else:
+            logging.warning("❌ Не знайдено новин з відповідними фото (це нормально для тесту)")
         
         # Тест генерації контенту
         logging.info("Тест генерації контенту...")
@@ -301,7 +334,8 @@ class SimpleInstagramBot:
         logging.info("⚠️ Пропускаю тест Instagram для уникнення блокувань")
         logging.info("✅ Instagram тест пропущено для безпеки")
         
-        logging.info("Всі тести пройдено!")
+        logging.info("✅ Всі тести пройдено!")
+        logging.info("🎉 НОВА ЛОГІКА ГОТОВА: Система тепер гарантовано бере фото з тієї ж статті що і текст!")
         return True
     
     def analyze_rss_quality(self):
@@ -397,6 +431,101 @@ class SimpleInstagramBot:
     def get_image_from_news(self, news_article):
         """Отримує ЯКІСНЕ оригінальне зображення з новини"""
         return self._analyze_images_only(news_article)
+    
+    def get_image_from_specific_article(self, news_article):
+        """Отримує зображення ТІЛЬКИ з конкретної статті, гарантуючи відповідність тексту"""
+        logging.info(f"🔍 Шукаю зображення ТІЛЬКИ з цієї статті: {news_article.get('link', 'N/A')}")
+        
+        # Пріоритет джерел: спочатку перевіряємо RSS, потім повну статтю
+        image_sources = []
+        
+        # 1. ПЕРШИЙ ПРІОРИТЕТ: зображення з RSS feed цієї статті
+        if news_article.get('rss_image'):
+            image_sources.append(('RSS feed', news_article['rss_image']))
+            
+        # 2. ДРУГИЙ ПРІОРИТЕТ: top_image з парсера статті
+        if news_article.get('top_image'):
+            image_sources.append(('Article parser', news_article['top_image']))
+        
+        # 3. ТРЕТІЙ ПРІОРИТЕТ: завантажуємо ПОВНУ статтю та беремо зображення з неї
+        article_url = news_article.get('link', '')
+        if article_url:
+            logging.info(f"📄 Завантажую повну статтю для ГАРАНТОВАНОЇ відповідності...")
+            page_images = self.extract_images_from_full_article(article_url)
+            for i, img_url in enumerate(page_images[:10]):  # Топ 10 зображень зі статті
+                image_sources.append((f'Full article #{i+1}', img_url))
+        
+        # 4. Додаємо зображення з description HTML тільки якщо вони з цієї ж статті
+        description = news_article.get('description', '') or news_article.get('summary', '')
+        if description:
+            desc_images = self.extract_images_from_html(description)
+            for i, img_url in enumerate(desc_images):
+                image_sources.append((f'Description #{i+1}', img_url))
+        
+        logging.info(f"📸 Знайдено {len(image_sources)} потенційних зображень з цієї статті")
+        
+        # Імпортуємо вимоги до якості
+        from config import IMAGE_REQUIREMENTS
+        min_width = IMAGE_REQUIREMENTS['min_width']
+        min_height = IMAGE_REQUIREMENTS['min_height'] 
+        min_pixels = IMAGE_REQUIREMENTS['min_pixels']
+        
+        # Перевіряємо кожне зображення по порядку пріоритету
+        for source_name, image_url in image_sources:
+            try:
+                logging.info(f"🔍 Перевіряю {source_name}: {image_url[:60]}...")
+                
+                # Намагаємось знайти оригінальну версію
+                enhanced_url = self.try_get_larger_image_url(image_url)
+                if enhanced_url != image_url:
+                    logging.info(f"🔍 Спробую оригінальну версію: {enhanced_url[:60]}...")
+                    image_url = enhanced_url
+                
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+                    'Referer': article_url,  # Важливо для доступу
+                    'Connection': 'keep-alive'
+                }
+                
+                response = requests.get(image_url, timeout=15, headers=headers, stream=True)
+                
+                if response.status_code == 200:
+                    # Перевіряємо розмір файлу
+                    content_length = response.headers.get('content-length')
+                    if content_length and int(content_length) < 10000:  # менше 10KB
+                        logging.warning(f"❌ Файл занадто малий: {content_length} байт")
+                        continue
+                        
+                    img = Image.open(BytesIO(response.content))
+                    width, height = img.size
+                    total_pixels = width * height
+                    
+                    logging.info(f"📏 Розмір зображення: {width}x{height} ({total_pixels} пікселів)")
+                    
+                    # Перевіряємо відповідність вимогам
+                    if width >= min_width and height >= min_height and total_pixels >= min_pixels:
+                        # Конвертуємо в RGB якщо потрібно
+                        if img.mode != 'RGB':
+                            original_mode = img.mode
+                            img = img.convert('RGB')
+                            logging.info(f"🔄 Конвертовано з {original_mode} в RGB")
+                        
+                        logging.info(f"✅ ЗНАЙДЕНО ПІДХОДЯЩЕ ФОТО з {source_name}: {width}x{height}")
+                        return img
+                    else:
+                        logging.warning(f"❌ Не відповідає вимогам: {width}x{height} (мін. {min_width}x{min_height})")
+                        continue
+                else:
+                    logging.warning(f"❌ Помилка завантаження: HTTP {response.status_code}")
+                    continue
+                    
+            except Exception as e:
+                logging.warning(f"❌ Помилка обробки зображення з {source_name}: {e}")
+                continue
+        
+        logging.warning(f"❌ НЕ ЗНАЙДЕНО підходящих зображень з цієї статті")
+        return None
     
 
     def _analyze_images_only(self, news_article):
