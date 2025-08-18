@@ -1,4 +1,19 @@
+"""
+Публікатор у Instagram на базі instagrapi.
+
+Ключові можливості:
+- login: авторизація з кешем сесії.
+- publish_photo_post: публікація фото у стрічку.
+- publish_story: публікація історій.
+- get_account_info / get_post_insights: допоміжні методи інформації/аналітики.
+- schedule_optimal_time: проста евристика «гарного часу» для посту.
+- add_hashtags_to_comment: додає хештеги окремим коментарем.
+- safe_publish: обгортач публікації з розділенням підпису/хештегів та таймінгом.
+- logout: вихід із акаунта.
+"""
+
 from instagrapi import Client
+from instagrapi.exceptions import LoginRequired, ChallengeRequired, PleaseWaitFewMinutes
 import os
 import time
 import random
@@ -7,17 +22,38 @@ from config import INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD
 
 class InstagramPublisher:
     def __init__(self):
+        """Створює клієнт instagrapi та готує поля авторизації/стану."""
         self.client = Client()
         self.username = INSTAGRAM_USERNAME
         self.password = INSTAGRAM_PASSWORD
         self.is_logged_in = False
         
+        # Спроба попередньо підвантажити сесію (якщо є)
+        try:
+            if os.path.exists("instagram_session.json"):
+                self.client.load_settings("instagram_session.json")
+        except Exception:
+            pass
+        
     def login(self):
-        """Авторизація в Instagram"""
+        """Виконує вхід у Instagram; за можливості використовує збережену сесію."""
         try:
             print("Вхід в Instagram...")
             
-            # Спроба входу
+            # 1) Спроба через збережені налаштування/сесію
+            if os.path.exists("instagram_session.json"):
+                try:
+                    self.client.load_settings("instagram_session.json")
+                    self.client.login(self.username, self.password)
+                    self.is_logged_in = True
+                    print("✅ Вхід через збережену сесію!")
+                    # Оновимо сесію
+                    self.client.dump_settings("instagram_session.json")
+                    return True
+                except Exception:
+                    print("⚠️ Збережена сесія неактуальна, пробую звичайний вхід...")
+            
+            # 2) Звичайний вхід
             self.client.login(self.username, self.password)
             self.is_logged_in = True
             print("✅ Успішний вхід в Instagram!")
@@ -41,25 +77,29 @@ class InstagramPublisher:
                 print("4. Або використайте інший аккаунт")
                 print("5. Переконайтеся що аккаунт не новий і має активність\n")
                 
-            # Спроба завантажити збережену сесію
-            elif os.path.exists("instagram_session.json"):
-                try:
-                    print("🔄 Спроба входу через збережену сесію...")
-                    self.client.load_settings("instagram_session.json")
-                    self.client.login(self.username, self.password)
-                    self.is_logged_in = True
-                    print("✅ Вхід через збережену сесію!")
-                    return True
-                except:
-                    print("❌ Збережена сесія не працює")
-            
             return False
     
+    def ensure_logged_in(self):
+        """Перевіряє валідність сесії і виконує повторний вхід за потреби."""
+        try:
+            if not self.is_logged_in:
+                return self.login()
+            # Швидка перевірка сесії викликом API
+            _ = self.client.account_info()
+            return True
+        except LoginRequired:
+            print("⚠️ Сесія недійсна: потрібен повторний вхід")
+            self.is_logged_in = False
+            return self.login()
+        except Exception:
+            # На будь-яку іншу помилку — пробуємо переввійтись
+            self.is_logged_in = False
+            return self.login()
+
     def publish_photo_post(self, image_path, caption, location=None):
-        """Публікує фото пост в Instagram"""
-        if not self.is_logged_in:
-            if not self.login():
-                return False, "Неможливо увійти в Instagram"
+        """Публікує фото у стрічку з підписом; повертає (success, message)."""
+        if not self.ensure_logged_in():
+            return False, "Неможливо увійти в Instagram"
         
         try:
             print("📤 Публікую пост в Instagram...")
@@ -85,12 +125,34 @@ class InstagramPublisher:
             
             return True, f"Пост опубліковано: {media.id}"
             
+        except (LoginRequired, ChallengeRequired) as e:
+            # Спроба відновлення сесії та повторного аплоаду один раз
+            print(f"⚠️ Сесія втрачена/потрібен челендж: {e}. Перевхід та повтор...")
+            self.is_logged_in = False
+            if self.ensure_logged_in():
+                try:
+                    time.sleep(random.uniform(5, 10))
+                    media = self.client.photo_upload(image_path, caption, location=location)
+                    print(f"✅ Пост успішно опубліковано після перевходу! ID: {media.id}")
+                    try:
+                        os.remove(image_path)
+                        print("🗑️ Тимчасовий файл видалено")
+                    except:
+                        pass
+                    return True, f"Пост опубліковано: {media.id}"
+                except Exception as e2:
+                    print(f"❌ Повторна помилка публікації: {e2}")
+                    return False, f"Помилка: {e2}"
+            return False, "login_required"
+        except PleaseWaitFewMinutes as e:
+            print(f"⏳ Instagram просить зачекати: {e}")
+            return False, "please_wait_few_minutes"
         except Exception as e:
             print(f"❌ Помилка публікації: {e}")
             return False, f"Помилка: {e}"
     
     def publish_story(self, image_path, text_overlay=None):
-        """Публікує Stories в Instagram"""
+        """Публікує історію з опціональним текстом; повертає (success, message)."""
         if not self.is_logged_in:
             if not self.login():
                 return False, "Неможливо увійти в Instagram"
@@ -119,7 +181,7 @@ class InstagramPublisher:
             return False, f"Помилка: {e}"
     
     def get_account_info(self):
-        """Отримує інформацію про аккаунт"""
+        """Повертає базову інформацію про акаунт (username/followers/...); або None при помилці."""
         if not self.is_logged_in:
             if not self.login():
                 return None
@@ -139,7 +201,7 @@ class InstagramPublisher:
             return None
     
     def get_post_insights(self, media_id):
-        """Отримує статистику поста (для бізнес аккаунтів)"""
+        """Повертає статистику поста (для бізнес-акаунтів) або None при помилці."""
         try:
             insights = self.client.insights_media_v1(media_id)
             return insights
@@ -148,7 +210,7 @@ class InstagramPublisher:
             return None
     
     def schedule_optimal_time(self):
-        """Визначає оптимальний час для публікації"""
+        """Повертає (is_optimal, message) для поточної години за простою евристикою таймінгу."""
         current_hour = datetime.now().hour
         
         # Оптимальні години для публікації в Instagram (за українським часом)
@@ -161,7 +223,7 @@ class InstagramPublisher:
             return False, f"Краще опублікувати о {next_optimal}:00"
     
     def add_hashtags_to_comment(self, media_id, hashtags):
-        """Додає хештеги як коментар (щоб не захаращувати основний текст)"""
+        """Додає хештеги як коментар під постом; повертає (success, comment_id|error)."""
         try:
             comment = self.client.media_comment(media_id, hashtags)
             print("✅ Хештеги додано як коментар")
@@ -171,8 +233,12 @@ class InstagramPublisher:
             return False, str(e)
     
     def safe_publish(self, image_path, caption, add_hashtags_as_comment=True):
-        """Безпечна публікація з додатковими перевірками"""
+        """Публікує фото безпечно: відокремлює хештеги, чекає «гарного часу», додає хештеги коментарем."""
         try:
+            # Переконуємось, що сесія робоча перед будь-якими діями
+            if not self.ensure_logged_in():
+                return False, "Неможливо увійти в Instagram"
+            
             # Перевіряємо час
             is_optimal, time_message = self.schedule_optimal_time()
             print(f"⏰ {time_message}")
@@ -202,7 +268,7 @@ class InstagramPublisher:
             return False, f"Помилка безпечної публікації: {e}"
     
     def logout(self):
-        """Вихід з аккаунту"""
+        """Завершує сесію instagrapi та скидає прапорець авторизації."""
         try:
             self.client.logout()
             self.is_logged_in = False

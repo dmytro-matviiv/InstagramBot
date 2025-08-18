@@ -1,3 +1,16 @@
+"""
+Збірник новин із RSS-джерел та сторінок статей.
+
+Ключові методи:
+- fetch_rss_news: завантажує RSS і формує початковий список статей.
+- extract_image_from_entry: шукає URL головного зображення в RSS entry.
+- estimate_image_quality_from_url: евристика оцінки якості за URL.
+- get_article_content: тягне повний контент сторінки через newspaper3k (за можливості).
+- collect_fresh_news: збирає та збагачує статті з усіх джерел.
+- filter_recent_news: фільтрує за часом та сортує за релевантністю.
+- get_random_news: повертає випадкову свіжу новину як fallback.
+"""
+
 import requests
 import feedparser
 from bs4 import BeautifulSoup
@@ -10,11 +23,12 @@ from config import NEWS_SOURCES
 
 class NewsCollector:
     def __init__(self):
+        """Зберігає конфігураційний список RSS-джерел і буфер зібраних статей."""
         self.sources = NEWS_SOURCES
         self.collected_articles = []
     
     def fetch_rss_news(self, rss_url):
-        """Збирає новини з RSS каналів з покращеними headers"""
+        """Повертає список статей з RSS-каналу з базовими полями та можливим `rss_image`."""
         try:
             # Покращені headers для обходу блокування
             headers = {
@@ -50,7 +64,7 @@ class NewsCollector:
             return []
     
     def extract_image_from_entry(self, entry):
-        """Витягує URL зображення з RSS entry"""
+        """Повертає URL головного зображення з RSS entry, перевіряючи media/enclosures/links/HTML."""
         import re
         image_url = None
         
@@ -133,7 +147,7 @@ class NewsCollector:
         return image_url
     
     def estimate_image_quality_from_url(self, url):
-        """Оцінює потенційну якість зображення за URL"""
+        """Повертає числовий бал якості за ключовими підрядками у URL (чим більше — тим краще)."""
         score = 0
         url_lower = url.lower()
         
@@ -170,7 +184,7 @@ class NewsCollector:
         return score
     
     def get_article_content(self, url):
-        """Отримує повний контент статті"""
+        """Повертає повний контент статті через newspaper3k (title/text/publish_date/top_image/images)."""
         try:
             # Налаштовуємо Article з User-Agent для обходу блокування
             article = Article(url)
@@ -204,7 +218,7 @@ class NewsCollector:
             return None
     
     def collect_fresh_news(self):
-        """Збирає свіжі новини з усіх джерел"""
+        """Збирає новини з усіх джерел, збагачує повним контентом (де можливо) та повертає список."""
         all_news = []
         
         for source in self.sources:
@@ -230,7 +244,7 @@ class NewsCollector:
         return fresh_news
     
     def filter_recent_news(self, articles, hours_ago=6):
-        """Фільтрує новини за останні N годин"""
+        """Повертає лише статті, опубліковані за останні `hours_ago` годин; сортує за довжиною тексту."""
         cutoff_time = datetime.now() - timedelta(hours=hours_ago)
         recent_articles = []
         
@@ -252,7 +266,7 @@ class NewsCollector:
         return sorted(recent_articles, key=lambda x: len(x.get('text', '')), reverse=True)
     
     def get_random_news(self):
-        """Повертає випадкову актуальну новину з fallback"""
+        """Повертає випадкову свіжу новину або статтю-заглушку, якщо RSS недоступні."""
         fresh_news = self.collect_fresh_news()
         if fresh_news:
             return random.choice(fresh_news)
